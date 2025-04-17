@@ -56,14 +56,36 @@ export default function Home() {
     e.preventDefault();
     setLoading(true);
 
+    const featuresArray = [
+      Number(formData.GENDER),
+      Number(formData.AGE),
+      Number(formData.SMOKING),
+      Number(formData.YELLOW_FINGERS),
+      Number(formData.ANXIETY),
+      Number(formData.PEER_PRESSURE),
+      Number(formData.CHRONIC_DISEASE),
+      Number(formData.FATIGUE),
+      Number(formData.ALLERGY),
+      Number(formData.WHEEZING),
+      Number(formData.ALCOHOL_CONSUMING),
+      Number(formData.COUGHING),
+      Number(formData.SHORTNESS_OF_BREATH),
+      Number(formData.SWALLOWING_DIFFICULTY),
+      Number(formData.CHEST_PAIN),
+    ];
+
     try {
       const response = await axios.post(
-        "http://127.0.0.1:8000/predict",
-        formData
+        "http://127.0.0.1:8000/api/chat/predict/",
+        {
+          user_id: "12345",
+          features: featuresArray,
+        }
       );
+
       setResultado(response.data.resultado);
     } catch (error) {
-      setResultado("Erro ao tentar fazer a previsão.");
+      console.error("Erro ao fazer a previsão:", error);
     }
 
     setLoading(false);
