@@ -1,22 +1,24 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-
+import axios from "axios";
 //imgs
 import Image from "next/image";
 import Logo from "@/assets/logo.png";
-import BgLogo from "@/assets/bg-home.png";
 
 //libs
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
-import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 
 import { AnimatePresence, motion } from "framer-motion";
 
 export default function Sistema() {
-  const fimDoChatRef = useRef<HTMLDivElement | null>(null);
+  const [mensagens, setMensagens] = useState<
+    { autor: string; texto: string }[]
+  >([]);
+  const [esperandoResposta, setEsperandoResposta] = useState(false);
+
   const [chatAtivo, setChatAtivo] = useState(false);
   const [input, setInput] = useState("");
-  const [mensagens, setMensagens] = useState<string[]>([]);
+  const fimDoChatRef = useRef<HTMLDivElement | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const maxHeight = 200;
 
@@ -35,11 +37,93 @@ export default function Sistema() {
     }
   }, [input]);
 
-  const handleEnviarMensagem = (e: React.FormEvent) => {
+  const sendMensagem = async (texto: string) => {
+    setMensagens((m) => [...m, { autor: "user", texto }]);
+
+    setEsperandoResposta(true);
+    setMensagens((m) => [...m, { autor: "bot", texto: "" }]);
+
+    // 3) abre o stream e vai preenchendo
+    const response = await fetch("http://localhost:8000/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: "12345", message: texto }),
+    });
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let respostaAtual = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      respostaAtual += decoder.decode(value, { stream: true });
+
+      // atualiza sempre a última mensagem do bot
+      setMensagens((m) => {
+        const msgs = [...m];
+        msgs[msgs.length - 1].texto = respostaAtual;
+        return msgs;
+      });
+    }
+
+    setEsperandoResposta(false);
+  };
+
+  const obterRespostaDoModelo = async (mensagem: string) => {
+    try {
+      const resposta = await axios.post("http://localhost:8000/api/chat", {
+        user_id: "12345",
+        message: mensagem,
+      });
+
+      return resposta.data.response;
+    } catch (erro) {
+      console.error("Erro ao enviar mensagem ao modelo:", erro);
+      return "Desculpe, houve um erro ao processar sua mensagem.";
+    }
+  };
+
+  const handleEnviarMensagem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() !== "") {
-      setMensagens([...mensagens, input]);
-      setInput("");
+      const novaMensagem = { autor: "user", texto: input };
+
+      setMensagens((prevMensagens) => [...prevMensagens, novaMensagem]);
+      setInput(""); // Limpa o campo de texto
+
+      // Envia a mensagem ao modelo
+      setEsperandoResposta(true);
+      const respostaDoModelo = await obterRespostaDoModelo(input);
+      setEsperandoResposta(false);
+
+      // Adiciona a resposta do modelo
+      let index = 0;
+      let textoDigitado = "";
+      await new Promise((resolve) => setTimeout(resolve, 500)); // 0.5s
+
+      const intervalo = setInterval(() => {
+        textoDigitado += respostaDoModelo.charAt(index);
+        index++;
+
+        setMensagens((prev) => {
+          const msgs = [...prev];
+          // Se a última mensagem já for do bot digitando, atualiza
+          if (
+            msgs[msgs.length - 1]?.autor === "bot" &&
+            textoDigitado.length > 1
+          ) {
+            msgs[msgs.length - 1].texto = textoDigitado;
+            return msgs;
+          } else {
+            // Se for o primeiro caractere, adiciona a msg do bot
+            return [...msgs, { autor: "bot", texto: textoDigitado }];
+          }
+        });
+
+        if (index >= respostaDoModelo.length) {
+          clearInterval(intervalo);
+        }
+      }, 8);
     }
   };
 
@@ -52,7 +136,7 @@ export default function Sistema() {
         </a>
       </header>
 
-      <section className="flex flex-col h-full w-full px-[30%] pt-24 relative">
+      <section className="flex flex-col h-full w-full px-4 md:px-[10%] pt-24 relative max-w-screen-xl mx-auto">
         <AnimatePresence>
           {!chatAtivo && (
             <motion.div
@@ -76,7 +160,10 @@ export default function Sistema() {
                 Vamos iniciar a sua consulta?
               </h2>
               <button
-                onClick={() => setChatAtivo(true)}
+                onClick={() => {
+                  setChatAtivo(true);
+                  sendMensagem("Vamos iniciar!");
+                }}
                 className="text-lg text-neutral-300 border w-1/4 p-2 rounded-lg hover:bg-neutral-700 cursor-pointer"
               >
                 Vamos iniciar!
@@ -99,7 +186,9 @@ export default function Sistema() {
               className="flex flex-col flex-grow relative h-full"
             >
               <div className="absolute top-2/5 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5">
-                <h1 className="text-white font-semibold text-8xl">LungAI</h1>
+                <h1 className="text-white font-semibold text-8xl select-none">
+                  LungAI
+                </h1>
               </div>
 
               <div className="flex flex-col gap-3 px-2 overflow-y-auto pb-4 flex-grow custom-scroll">
@@ -111,12 +200,27 @@ export default function Sistema() {
                   mensagens.map((msg, index) => (
                     <div
                       key={index}
-                      className="self-end bg-neutral-700 text-white px-4 py-2 rounded-xl max-w-1/2 break-words"
+                      className={`text-white self-${
+                        msg.autor === "user" ? "end" : "start"
+                      } px-4 py-2 rounded-xl max-w-1/2 break-words z-10 ${
+                        msg.autor === "user"
+                          ? "bg-neutral-500"
+                          : "bg-neutral-700"
+                      }`}
                     >
-                      {msg}
+                      {msg.texto}
                     </div>
                   ))
                 )}
+
+                {esperandoResposta && (
+                  <div className="self-start bg-neutral-700 text-white px-4 py-2 rounded-xl max-w-1/2">
+                    <span className="italic text-neutral-400">
+                      LungAI está digitando...
+                    </span>
+                  </div>
+                )}
+
                 <div ref={fimDoChatRef} />
               </div>
 
@@ -127,6 +231,7 @@ export default function Sistema() {
                 >
                   <textarea
                     ref={textAreaRef}
+                    disabled={esperandoResposta}
                     className="bg-neutral-700 pt-4 px-6 w-full text-white rounded-2xl border border-neutral-600 resize-none overflow-y-auto focus:outline-none"
                     value={input}
                     placeholder="Escreva a sua mensagem..."
@@ -143,6 +248,7 @@ export default function Sistema() {
                   <button
                     type="submit"
                     className="absolute bottom-3 right-3 text-white focus:outline-none cursor-pointer"
+                    disabled={esperandoResposta}
                   >
                     <ArrowCircleUpIcon fontSize="large" />
                   </button>
