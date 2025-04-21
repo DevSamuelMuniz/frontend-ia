@@ -7,7 +7,6 @@ import Logo from "@/assets/logo.png";
 
 //libs
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
-
 import { AnimatePresence, motion } from "framer-motion";
 
 export default function Sistema() {
@@ -16,11 +15,36 @@ export default function Sistema() {
   >([]);
   const [esperandoResposta, setEsperandoResposta] = useState(false);
 
+  const [respostasUsuario, setRespostasUsuario] = useState<Record<number, string>>({});
+
+
   const [chatAtivo, setChatAtivo] = useState(false);
   const [input, setInput] = useState("");
   const fimDoChatRef = useRef<HTMLDivElement | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const maxHeight = 200;
+
+  //perguntas
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
+  const perguntas = [
+    "Olá, sou o LungIA, vamos começar nosso teste?",
+    "Qual o seu gênero?",
+    "Qual a sua idade?",
+    "Você fuma?",
+    "Seus dedos ficam amarelados?",
+    "Você tem ansiedade?",
+    "Você sofre pressão dos colegas para fumar?",
+    "Você possui alguma doença crônica?",
+    "Você sente fadiga com frequência?",
+    "Você tem alergias?",
+    "Você chia ao respirar?",
+    "Você consome álcool?",
+    "Você tosse frequentemente?",
+    "Você sente falta de ar?",
+    "Você tem dificuldade para engolir?",
+    "Você sente dor no peito?",
+  ];
 
   useEffect(() => {
     fimDoChatRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -37,44 +61,15 @@ export default function Sistema() {
     }
   }, [input]);
 
-  const sendMensagem = async (texto: string) => {
-    setMensagens((m) => [...m, { autor: "user", texto }]);
-
-    setEsperandoResposta(true);
-    setMensagens((m) => [...m, { autor: "bot", texto: "" }]);
-
-    // 3) abre o stream e vai preenchendo
-    const response = await fetch("http://localhost:8000/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: "12345", message: texto }),
-    });
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let respostaAtual = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      respostaAtual += decoder.decode(value, { stream: true });
-
-      // atualiza sempre a última mensagem do bot
-      setMensagens((m) => {
-        const msgs = [...m];
-        msgs[msgs.length - 1].texto = respostaAtual;
-        return msgs;
-      });
-    }
-
-    setEsperandoResposta(false);
-  };
-
   const obterRespostaDoModelo = async (mensagem: string) => {
     try {
-      const resposta = await axios.post("http://localhost:8000/api/chat", {
-        user_id: "12345",
-        message: mensagem,
-      });
+      const resposta = await axios.post(
+        "http://localhost:8000/api/chat/predict",
+        {
+          // user_id: "12345",
+          message: mensagem,
+        }
+      );
 
       return resposta.data.response;
     } catch (erro) {
@@ -83,47 +78,45 @@ export default function Sistema() {
     }
   };
 
+  // const sendMensagem = async (texto: string) => {
+  //   setMensagens((m) => [...m, { autor: "user", texto }]);
+  //   setEsperandoResposta(true);
+
+  //   const respostaDoModelo = await obterRespostaDoModelo(texto);
+  //   setMensagens((m) => [...m, { autor: "bot", texto: respostaDoModelo }]);
+
+  //   setEsperandoResposta(false);
+  // };
+
   const handleEnviarMensagem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim() !== "") {
-      const novaMensagem = { autor: "user", texto: input };
+    if (input.trim() === "") return;
 
-      setMensagens((prevMensagens) => [...prevMensagens, novaMensagem]);
-      setInput(""); // Limpa o campo de texto
+    // Adiciona a resposta do usuário
+    const respostaUsuario = { autor: "user", texto: input };
+    setMensagens((prev) => [...prev, respostaUsuario]);
+    setInput("");
 
-      // Envia a mensagem ao modelo
-      setEsperandoResposta(true);
-      const respostaDoModelo = await obterRespostaDoModelo(input);
-      setEsperandoResposta(false);
+    // Espera um pouco antes de mostrar a próxima pergunta
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Adiciona a resposta do modelo
-      let index = 0;
-      let textoDigitado = "";
-      await new Promise((resolve) => setTimeout(resolve, 500)); // 0.5s
+    const proximaPergunta = perguntas[currentQuestionIndex + 1];
 
-      const intervalo = setInterval(() => {
-        textoDigitado += respostaDoModelo.charAt(index);
-        index++;
-
-        setMensagens((prev) => {
-          const msgs = [...prev];
-          // Se a última mensagem já for do bot digitando, atualiza
-          if (
-            msgs[msgs.length - 1]?.autor === "bot" &&
-            textoDigitado.length > 1
-          ) {
-            msgs[msgs.length - 1].texto = textoDigitado;
-            return msgs;
-          } else {
-            // Se for o primeiro caractere, adiciona a msg do bot
-            return [...msgs, { autor: "bot", texto: textoDigitado }];
-          }
-        });
-
-        if (index >= respostaDoModelo.length) {
-          clearInterval(intervalo);
-        }
-      }, 8);
+    if (proximaPergunta) {
+      setMensagens((prev) => [
+        ...prev,
+        { autor: "bot", texto: proximaPergunta },
+      ]);
+      setCurrentQuestionIndex((prev) => prev + 1);
+    } else {
+      setMensagens((prev) => [
+        ...prev,
+        {
+          autor: "bot",
+          texto:
+            "Obrigado! Suas respostas foram registradas e o seu resultado é:",
+        },
+      ]);
     }
   };
 
@@ -162,7 +155,7 @@ export default function Sistema() {
               <button
                 onClick={() => {
                   setChatAtivo(true);
-                  sendMensagem("Vamos iniciar!");
+                  setMensagens([{ autor: "bot", texto: perguntas[0] }]);
                 }}
                 className="text-lg text-neutral-300 border w-1/4 p-2 rounded-lg hover:bg-neutral-700 cursor-pointer"
               >
@@ -191,7 +184,7 @@ export default function Sistema() {
                 </h1>
               </div>
 
-              <div className="flex flex-col gap-3 px-2 overflow-y-auto pb-4 flex-grow custom-scroll">
+              <div className="flex flex-col gap-3 px-2 overflow-y-auto pb-4 flex-grow custom-scroll w-full">
                 {mensagens.length === 0 ? (
                   <p className="text-neutral-400 text-center mt-4">
                     Envie sua primeira mensagem para começar a interação.
@@ -200,24 +193,30 @@ export default function Sistema() {
                   mensagens.map((msg, index) => (
                     <div
                       key={index}
-                      className={`text-white self-${
-                        msg.autor === "user" ? "end" : "start"
-                      } px-4 py-2 rounded-xl max-w-1/2 break-words z-10 ${
-                        msg.autor === "user"
-                          ? "bg-neutral-500"
-                          : "bg-neutral-700"
+                      className={`flex ${
+                        msg.autor === "user" ? "justify-end" : "justify-start"
                       }`}
                     >
-                      {msg.texto}
+                      <div
+                        className={`text-white px-4 py-2 rounded-xl max-w-[70%] break-words z-10 ${
+                          msg.autor === "user"
+                            ? "bg-blue-500"
+                            : "bg-neutral-700"
+                        }`}
+                      >
+                        {msg.texto}
+                      </div>
                     </div>
                   ))
                 )}
 
                 {esperandoResposta && (
-                  <div className="self-start bg-neutral-700 text-white px-4 py-2 rounded-xl max-w-1/2">
-                    <span className="italic text-neutral-400">
-                      LungAI está digitando...
-                    </span>
+                  <div className="flex justify-start">
+                    <div className="self-start bg-neutral-700 text-white px-4 py-2 rounded-xl max-w-[70%]">
+                      <span className="italic text-neutral-400">
+                        LungAI está digitando...
+                      </span>
+                    </div>
                   </div>
                 )}
 

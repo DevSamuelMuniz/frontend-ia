@@ -52,7 +52,9 @@ export default function Home() {
     setFormData((prev: any) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleSubmit = async (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     e.preventDefault();
     setLoading(true);
 
