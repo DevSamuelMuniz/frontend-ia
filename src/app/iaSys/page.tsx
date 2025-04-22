@@ -1,8 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
-
-
+import axios from "axios";
 //imgs
 import Image from "next/image";
 import Logo from "@/assets/logo.png";
@@ -10,12 +8,15 @@ import Logo from "@/assets/logo.png";
 //libs
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import { AnimatePresence, motion } from "framer-motion";
-import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 export default function Sistema() {
   const [mensagens, setMensagens] = useState<
     { autor: string; texto: string }[]
   >([]);
+  const [esperandoResposta, setEsperandoResposta] = useState(false);
+
+  const [respostasUsuario, setRespostasUsuario] = useState<Record<number, string>>({});
+
 
   const [chatAtivo, setChatAtivo] = useState(false);
   const [input, setInput] = useState("");
@@ -25,6 +26,7 @@ export default function Sistema() {
 
   //perguntas
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
 
   useEffect(() => {
     fimDoChatRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -41,111 +43,58 @@ export default function Sistema() {
     }
   }, [input]);
 
-  //
-  //
-
-  const [prompt, setPrompt] = useState("");
-  const socketRef = useRef<WebSocket | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [enviar, setEnviar] = useState(false);
-  const [promptDisabled, setPromptDisabled] = useState(false);
-  const scrollContainerRef = useRef<any>(null);
-  const [primeiraInteracao, setPrimeiraInteracao] = useState(true);
-  
-  
-  useEffect(() => {
-    // const socket = new WebSocket('wss://app1.pe.senac.br/d1b31e037327cf2924453aa6c635c680/agent');
-    const socket = new WebSocket("ws://localhost:7000/agent");
-
-    socket.onopen = () => {
-      console.log("Connectado.");
-    };
-
-    socket.onmessage = (event) => {
-      const response = JSON.parse(event.data);
-
-      setMessages((prevMessages) => {
-        const index = prevMessages.findIndex((msg) => msg.id === response.id);
-
-        if (response.finalizado) {
-          setPromptDisabled(false);
+  const obterRespostaDoModelo = async (mensagem: string) => {
+    try {
+      // Fazendo a requisição POST para a API de chat
+      const resposta = await axios.post(
+        "http://localhost:8000/api/chat/", 
+        {
+          user_id: "12345",  // Aqui você pode usar um ID de usuário real ou um valor dinâmico
+          message: mensagem, // Mensagem que será enviada
         }
-
-        if (index !== -1) {
-          // console.log('Atualizar')
-          const updatedMessages = [...prevMessages];
-          updatedMessages[index] = {
-            ...prevMessages[index],
-            text: `${prevMessages[index].text}${response.text}`,
-          };
-          return updatedMessages;
-        } else {
-          return [response, ...prevMessages];
-        }
-      });
-    };
-
-    socket.onerror = (error) => {
-      console.error("Erro no WebSocket:", error);
-    };
-
-    socket.onclose = () => {
-      console.log("Conexão WebSocket fechada");
-    };
-
-    socketRef.current = socket;
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
-      }
-    };
-  }, []);
-
-  function handleOnChangePrompt(e: any) {
-    setPrompt(e.target.value);
-  }
-
-  function handleEnviar(e: any) {
-    if (e.key === "Enter") {
-      setPrimeiraInteracao(false);
-      setEnviar(true);
+      );
+  
+      // Retorna a resposta recebida da API
+      return resposta.data.response;
+    } catch (erro) {
+      console.error("Erro ao enviar mensagem ao modelo:", erro);
+      return "Desculpe, houve um erro ao processar sua mensagem.";
     }
-  }
-
-  function enviarPrompt() {
-    if (socketRef.current && prompt.trim() !== "") {
-      socketRef.current.send(prompt);
-      setPromptDisabled(true);
-      setPrompt("");
-      setEnviar(false);
-    }
-  }
-
-  useEffect(() => {
-    if (enviar) {
-      setMessages([{ id: uuidv4(), text: prompt, type: "user" }, ...messages]);
-      enviarPrompt();
-    }
-  }, [prompt]);
-
-  const handleScrollDown = () => {
-    scrollContainerRef.current?.scrollIntoView({ behavior: "smooth" });
-    // const container = scrollContainerRef.current;
-    // container.scrollTop = container.scrollHeight;
   };
+  
 
-  const selectHelper = (value: string) => {
-    setPrompt(value);
-    setPrimeiraInteracao(false);
-    setEnviar(true);
+  // const sendMensagem = async (texto: string) => {
+  //   setMensagens((m) => [...m, { autor: "user", texto }]);
+  //   setEsperandoResposta(true);
+
+  //   const respostaDoModelo = await obterRespostaDoModelo(texto);
+  //   setMensagens((m) => [...m, { autor: "bot", texto: respostaDoModelo }]);
+
+  //   setEsperandoResposta(false);
+  // };
+
+  const handleEnviarMensagem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (input.trim() === "") return;
+  
+    // Adiciona a resposta do usuário no chat
+    const respostaUsuario = { autor: "user", texto: input };
+    setMensagens((prev) => [...prev, respostaUsuario]);
+    setInput(""); // Limpa o campo de entrada
+  
+    // Espera um pouco antes de mostrar a próxima pergunta
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  
+    // Chama a função para obter a resposta do modelo (IA)
+    const respostaDoModelo = await obterRespostaDoModelo(input);
+  
+    // Adiciona a resposta do modelo no chat
+    setMensagens((prev) => [
+      ...prev,
+      { autor: "bot", texto: respostaDoModelo },
+    ]);
   };
-
-  useEffect(() => {
-    handleScrollDown();
-  }, [messages]);
-
-  //
+  
 
   return (
     <main className="bg-neutral-800 h-screen w-screen flex flex-col font-poppins overflow-hidden">
@@ -181,7 +130,6 @@ export default function Sistema() {
               </h2>
               <button
                 onClick={() => {
-                  selectHelper('Vamos Iniciar!');
                   setChatAtivo(true);
                 }}
                 className="text-lg text-neutral-300 border w-1/4 p-2 rounded-lg hover:bg-neutral-700 cursor-pointer"
@@ -211,48 +159,70 @@ export default function Sistema() {
                 </h1>
               </div>
 
-              <div className="flex flex-col-reverse gap-3 px-2 overflow-y-auto pb-4 flex-grow custom-scroll w-full">
-                {messages.length === 0 ? (
+              <div className="flex flex-col gap-3 px-2 overflow-y-auto pb-4 flex-grow custom-scroll w-full">
+                {mensagens.length === 0 ? (
                   <p className="text-neutral-400 text-center mt-4">
                     Envie sua primeira mensagem para começar a interação.
                   </p>
                 ) : (
-                  messages.map((message) => {
-                    if (message.type === "user") {
-                      return (
-                        <div
-                          key={message.id}
-                          className="p-2 text-white bg-black max-w-[80%] self-end rounded-xl mt-4"
-                        >
-                          {message.text}
-                        </div>
-                      );
-                    } else if (message.type === "system") {
-                      return (
-                        <MarkdownRenderer key={message.id} content={message.text} />
-                      );
-                    }
-                  })
+                  mensagens.map((msg, index) => (
+                    <div
+                      key={index}
+                      className={`flex ${
+                        msg.autor === "user" ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      <div
+                        className={`text-white px-4 py-2 rounded-xl max-w-[70%] break-words z-10 ${
+                          msg.autor === "user"
+                            ? "bg-blue-500"
+                            : "bg-neutral-700"
+                        }`}
+                      >
+                        {msg.texto}
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                {esperandoResposta && (
+                  <div className="flex justify-start">
+                    <div className="self-start bg-neutral-700 text-white px-4 py-2 rounded-xl max-w-[70%]">
+                      <span className="italic text-neutral-400">
+                        LungAI está digitando...
+                      </span>
+                    </div>
+                  </div>
                 )}
 
                 <div ref={fimDoChatRef} />
               </div>
 
               <div className="w-full mt-2">
-                <form onSubmit={handleEnviar} className="relative w-full">
+                <form
+                  onSubmit={handleEnviarMensagem}
+                  className="relative w-full"
+                >
                   <textarea
                     ref={textAreaRef}
+                    disabled={esperandoResposta}
                     className="bg-neutral-700 pt-4 px-6 w-full text-white rounded-2xl border border-neutral-600 resize-none overflow-y-auto focus:outline-none"
-                    value={prompt}
+                    value={input}
                     placeholder="Escreva a sua mensagem..."
-                    onChange={handleOnChangePrompt}
-                    onKeyDown={handleEnviar}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleEnviarMensagem(e);
+                      }
+                    }}
                     rows={1}
                     style={{ maxHeight: "200px", minHeight: "6rem" }}
                   />
                   <button
                     type="submit"
                     className="absolute bottom-3 right-3 text-white focus:outline-none cursor-pointer"
+                    disabled={esperandoResposta}
                   >
                     <ArrowCircleUpIcon fontSize="large" />
                   </button>
