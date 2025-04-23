@@ -41,7 +41,7 @@ export default function DashboardStats() {
 
   useEffect(() => {
     axios
-      .get<StatsResponse>("http://localhost:7000/api/dashboard")
+      .get<StatsResponse>("https://backend-ia-r795.onrender.com/api/dashboard")
       .then((res) => setStats(res.data))
       .catch(console.error)
       .finally(() => setLoading(false));
