@@ -52,7 +52,7 @@ export default function Sistema() {
   const [primeiraInteracao, setPrimeiraInteracao] = useState(true);
 
   useEffect(() => {
-    const socket = new WebSocket("ws://backend-ia-r795.onrender.com/agent");
+    const socket = new WebSocket("wss://backend-ia-r795.onrender.com/agent");
 
     socket.onopen = () => {
       console.log("Connectado.");
