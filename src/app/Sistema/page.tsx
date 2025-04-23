@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 
-
 //imgs
 import Image from "next/image";
 import Logo from "@/assets/logo.png";
@@ -51,11 +50,10 @@ export default function Sistema() {
   const [promptDisabled, setPromptDisabled] = useState(false);
   const scrollContainerRef = useRef<any>(null);
   const [primeiraInteracao, setPrimeiraInteracao] = useState(true);
-  
-  
+
   useEffect(() => {
     // const socket = new WebSocket('wss://app1.pe.senac.br/d1b31e037327cf2924453aa6c635c680/agent');
-    const socket = new WebSocket("ws://localhost:7000/agent");
+    const socket = new WebSocket("wss://backend-ia-r795.onrender.com/agent");
 
     socket.onopen = () => {
       console.log("Connectado.");
@@ -181,7 +179,7 @@ export default function Sistema() {
               </h2>
               <button
                 onClick={() => {
-                  selectHelper('Vamos Iniciar!');
+                  selectHelper("Vamos Iniciar!");
                   setChatAtivo(true);
                 }}
                 className="text-lg text-neutral-300 border w-1/4 p-2 rounded-lg hover:bg-neutral-700 cursor-pointer"
@@ -229,7 +227,10 @@ export default function Sistema() {
                       );
                     } else if (message.type === "system") {
                       return (
-                        <MarkdownRenderer key={message.id} content={message.text} />
+                        <MarkdownRenderer
+                          key={message.id}
+                          content={message.text}
+                        />
                       );
                     }
                   })
