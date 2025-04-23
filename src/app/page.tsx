@@ -23,6 +23,8 @@ import { motion } from "framer-motion";
 import Logo from "@/assets/logo.png";
 import Image from "next/image";
 
+import { SelectChangeEvent } from '@mui/material';
+
 export default function Home() {
   const [formData, setFormData] = useState<any>({
     GENDER: "",
@@ -45,12 +47,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
 
+  
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | SelectChangeEvent<string>
   ) => {
     const { name, value } = e.target;
     setFormData((prev: any) => ({ ...prev, [name]: value }));
   };
+  
 
   const handleSubmit = async (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
