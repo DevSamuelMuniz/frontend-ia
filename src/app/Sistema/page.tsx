@@ -188,8 +188,8 @@ export default function Sistema() {
               >
                 Vamos iniciar!
               </button>
-              <a className="text-neutral-400 mt-4" href="">
-                Iniciar conversa aleatória.
+              <a className="text-neutral-400 mt-4" href="/Dashboard">
+                Ver dashboards
               </a>
             </motion.div>
           )}
